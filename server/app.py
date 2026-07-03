@@ -7,7 +7,11 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "instance" / "leaderboard.db"
+
+if os.environ.get("VERCEL"):
+    DB_PATH = Path("/tmp") / "leaderboard.db"
+else:
+    DB_PATH = BASE_DIR / "instance" / "leaderboard.db"
 
 app = Flask(
     __name__,
@@ -21,11 +25,11 @@ def _get_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    _init_db(conn)
     return conn
 
 
-def _init_db():
-    conn = _get_db()
+def _init_db(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS scores (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,10 +46,6 @@ def _init_db():
         CREATE INDEX IF NOT EXISTS idx_scores_created ON scores(created_at);
     """)
     conn.commit()
-    conn.close()
-
-
-_init_db()
 
 
 # ─── API ────────────────────────────────────────────────────────────
