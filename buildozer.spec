@@ -27,7 +27,7 @@ version = 1.0.0
 
 # (list) Application requirements
 # pymunk is handled via a local p4a recipe that works with Android cross-compilation
-requirements = python3,pygame-ce,pymunk,pillow
+requirements = python3,pygame-ce,pymunk
 
 # (str) Custom source folders for requirements
 # Local p4a recipes directory for pygame-ce + pymunk

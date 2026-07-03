@@ -9,8 +9,8 @@ class PymunkRecipe(CompiledComponentsPythonRecipe):
     """
 
     name = "pymunk"
-    version = "7.4.2"
-    url = "https://github.com/viblo/pymunk/archive/refs/tags/{version}.zip"
+    version = "7.3.0"
+    url = "https://github.com/viblo/pymunk/archive/refs/tags/{version}.tar.gz"
 
     depends = ["cffi", "setuptools"]
 
