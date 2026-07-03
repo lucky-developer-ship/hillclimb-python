@@ -12,7 +12,7 @@ class MenuScreen:
         self.font_large = assets.get_font(48)
         self.font_medium = assets.get_font(28)
         self.font_small = assets.get_font(18)
-        self.menu_items = ["PLAY", "GARAGE", "SETTINGS", "QUIT"]
+        self.menu_items = ["PLAY", "GARAGE", "SETTINGS", "CREDITS", "QUIT"]
         self.selected_index = 0
         self.time = 0
         self.button_rects = []
@@ -52,6 +52,8 @@ class MenuScreen:
         elif index == 2:
             self.game.set_screen("settings")
         elif index == 3:
+            self.game.set_screen("credits")
+        elif index == 4:
             self.game.running = False
         self.game.sound_manager.play_sfx("click")
 

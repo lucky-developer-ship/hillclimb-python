@@ -9,9 +9,9 @@ include = ["data", "data.*", "entity", "entity.*", "physics", "physics.*", "scre
 name = "hillclimb_python"
 version = "1.0.0"
 description = "Hill Climb Racing clone made with Pygame and Pymunk"
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.11"
 dependencies = [
-    "pygame>=2.5.0,<3.0",
+    "pygame-ce>=2.5.0",
     "pymunk>=7.3.0,<8.0",
 ]
 

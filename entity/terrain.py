@@ -35,6 +35,7 @@ class TerrainChunk:
         self.start_x = index * TERRAIN_CHUNK_WIDTH
         self.end_x = self.start_x + TERRAIN_CHUNK_WIDTH
         self.space = space
+        self.seed = seed
         self.points = []
         self.bodies = []
         self.shapes = []
@@ -51,7 +52,7 @@ class TerrainChunk:
 
     def _get_friction_at(self, x):
         zone_index = int(x / FRICTION_ZONE_LENGTH)
-        rng = random.Random(self.index * 10000 + zone_index * 7 + 999)
+        rng = random.Random(self.seed + self.index * 10000 + zone_index * 7)
         zone_type = rng.randint(0, 20)
         if zone_type < 2:
             return ICE_FRICTION, "ice"
@@ -131,6 +132,8 @@ class TerrainManager:
         self.objects = []
         self._chunk_objects = {}
         self._next_fuel_x = FUEL_PICKUP_INTERVAL
+        self._chunk_timer = 0.0
+        self._chunk_interval = 0.05  # throttle chunk gen to ~20fps
 
     def get_chunks(self):
         return list(self.chunks.values())
@@ -197,7 +200,11 @@ class TerrainManager:
                     self._chunk_pickups.setdefault(chunk_index, []).append(fuel)
             self._next_fuel_x += FUEL_PICKUP_INTERVAL
 
-    def update(self, camera_x, space):
+    def update(self, camera_x, space, dt=0.016):
+        self._chunk_timer += dt
+        if self._chunk_timer < self._chunk_interval:
+            return
+        self._chunk_timer = 0.0
         view_left = camera_x - 12
         view_right = camera_x + 12
         chunk_size = TERRAIN_CHUNK_WIDTH

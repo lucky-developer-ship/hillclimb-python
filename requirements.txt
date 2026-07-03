@@ -1,7 +1,6 @@
 # Runtime
-pygame>=2.5.0,<3.0
+pygame-ce>=2.5.0
 pymunk>=7.3.0,<8.0
-# Requires Python 3.11 – 3.13 (3.14+ not yet supported due to pygame build issues)
 
 # Dev / Testing
 pytest>=8.0

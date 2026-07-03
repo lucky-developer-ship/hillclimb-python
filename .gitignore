@@ -13,6 +13,13 @@ hillclimb_save.json
 ghosts/
 server/instance/
 *.spec
+!buildozer.spec
 stderr.txt
 stdout.txt
 .vercel
+
+.vercel
+.buildozer/
+bin/
+.opencode/
+myenv/

@@ -32,12 +32,8 @@ from system.input_manager import InputManager
 
 def _to_screen(world_x, world_y, camera_x, camera_y):
     sx = (world_x - camera_x) * PIXELS_PER_METER + SCREEN_WIDTH // 2
-    sy = (world_y - camera_y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2
+    sy = (camera_y - world_y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2
     return int(sx), int(sy)
-
-
-def _world_to_screen_y(world_y, camera_y):
-    return int((world_y - camera_y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2)
 
 
 class GameScreen:
@@ -81,7 +77,7 @@ class GameScreen:
         self.stage_complete = False
         self.stage_complete_timer = 0.0
         self.results_choice = 0
-        self.results_options = ["NEXT STAGE", "MENU"]
+        self.results_options = self._compute_results_options()
         self.pause_choice = 0
         self.pause_options = ["Resume", "Restart", "Quit to Menu"]
         self.collect_animations = []
@@ -95,6 +91,16 @@ class GameScreen:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 if self.stage_complete:
+                    self.game.sound_manager.stop_engine()
+                    self.ghost_recorder.save()
+                    self._apply_daily_rewards()
+                    self.game.save_data.add_coins(self.coins)
+                    self.game.save_data.update_best_distance(self.stage.id, int(self.distance))
+                    self.game.save_data.save()
+                    self.game.set_screen("menu")
+                    return
+                if self.game_over:
+                    self._quick_restart()
                     return
                 self.paused = not self.paused
                 if self.paused:
@@ -108,15 +114,27 @@ class GameScreen:
                     self.game.sound_manager.play_sfx("click")
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     self._handle_pause_choice()
+            if self.game_over and not self.paused:
+                if event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
+                    self._quick_restart()
+                    return
             if self.stage_complete:
+                opts = self._compute_results_options()
                 if event.key == pygame.K_UP:
-                    self.results_choice = (self.results_choice - 1) % len(self.results_options)
+                    self.results_choice = (self.results_choice - 1) % len(opts)
                     self.game.sound_manager.play_sfx("click")
                 elif event.key == pygame.K_DOWN:
-                    self.results_choice = (self.results_choice + 1) % len(self.results_options)
+                    self.results_choice = (self.results_choice + 1) % len(opts)
                     self.game.sound_manager.play_sfx("click")
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                     self._handle_results_choice()
+
+    def _quick_restart(self):
+        self.game.sound_manager.stop_engine()
+        self.game.save_data.add_coins(self.coins)
+        self.game.save_data.update_best_distance(self.stage.id, int(self.distance))
+        self.game.save_data.save()
+        self.game.set_screen("game", stage=self.stage, seed=getattr(self.terrain_manager, "seed", None))
 
     def _handle_pause_choice(self):
         if self.pause_choice == 0:
@@ -132,19 +150,32 @@ class GameScreen:
             self.game.save_data.save()
             self.game.set_screen("menu")
 
+    def _apply_daily_rewards(self):
+        if not self.daily:
+            return
+        trophies = max(10, int(self.distance) * 2)
+        self.game.save_data.trophies += trophies
+        league = get_league(self.game.save_data.trophies)
+        daily_bonus = LEAGUE_REWARDS.get(league, 100)
+        self.game.save_data.add_coins(daily_bonus)
+        self.game.save_data.last_daily_date = datetime.date.today().isoformat()
+
+    def _compute_results_options(self):
+        next_idx = 0
+        for i, s in enumerate(STAGES):
+            if s.id == self.stage.id and i + 1 < len(STAGES):
+                next_idx = i + 1
+                break
+        return ["NEXT STAGE", "MENU"] if next_idx > 0 else ["MENU"]
+
     def _handle_results_choice(self):
         self.game.sound_manager.stop_engine()
         self.ghost_recorder.save()
-        self.game.save_data.add_coins(self.coins)
-        if self.daily:
-            trophies = max(10, int(self.distance) * 2)
-            self.game.save_data.trophies += trophies
-            league = get_league(self.game.save_data.trophies)
-            daily_bonus = LEAGUE_REWARDS.get(league, 100)
-            self.game.save_data.add_coins(daily_bonus)
-            self.game.save_data.last_daily_date = datetime.date.today().isoformat()
+        self._apply_daily_rewards()
         self.game.save_data.save()
-        if self.results_choice == 0:
+        options = self._compute_results_options()
+        choice = self.results_choice if self.results_choice < len(options) else 0
+        if choice == 0 and len(options) > 1:
             next_idx = 0
             for i, s in enumerate(STAGES):
                 if s.id == self.stage.id and i + 1 < len(STAGES):
@@ -169,13 +200,7 @@ class GameScreen:
                 self.game.save_data.add_coins(self.coins)
                 self.game.save_data.update_best_distance(self.stage.id, int(self.distance))
                 self.ghost_recorder.save()
-                if self.daily:
-                    trophies = max(10, int(self.distance) * 2)
-                    self.game.save_data.trophies += trophies
-                    league = get_league(self.game.save_data.trophies)
-                    daily_bonus = LEAGUE_REWARDS.get(league, 100)
-                    self.game.save_data.add_coins(daily_bonus)
-                    self.game.save_data.last_daily_date = datetime.date.today().isoformat()
+                self._apply_daily_rewards()
                 self.game.save_data.save()
                 self.game.set_screen("menu")
             return
@@ -190,10 +215,9 @@ class GameScreen:
             self._update_physics(sub_dt)
         self._update_game_state(dt)
         self.particles.update(dt, self.camera.x, self.camera.y)
-        for anim in self.collect_animations[:]:
+        for anim in self.collect_animations:
             anim["timer"] -= dt
-            if anim["timer"] <= 0:
-                self.collect_animations.remove(anim)
+        self.collect_animations = [a for a in self.collect_animations if a["timer"] > 0]
 
     def _update_physics(self, dt):
         gas = self.input_manager.is_gas_pressed()
@@ -245,7 +269,7 @@ class GameScreen:
         self.fuel = min(self.vehicle.get_fuel_max(), self.fuel + collected_fuel * FUEL_CAN_RESTORE)
         vel_x = self.vehicle.get_position().velocity.x
         self.ghost_recorder.record(v_pos.position.x, v_pos.position.y, v_pos.angle)
-        self.terrain_manager.update(v_pos.position.x, self.physics_world.space)
+        self.terrain_manager.update(v_pos.position.x, self.physics_world.space, dt)
         self.camera.update(dt, v_pos, vel_x)
 
         self.game.sound_manager.update_engine(gas or brake)
@@ -355,6 +379,8 @@ class GameScreen:
                 pygame.draw.line(surface, self.stage.grass_line_color, gn_y, gn_y2, 2)
 
     def _draw_terrain_zones(self, surface, left, top, right, bottom):
+        if not hasattr(self, "_zone_cache"):
+            self._zone_cache = {}
         chunks = self.terrain_manager.get_chunks()
         for chunk in chunks:
             pts = chunk.get_surface_points()
@@ -367,28 +393,24 @@ class GameScreen:
             for mid_x, fric, ztype in chunk.segment_frictions:
                 if mid_x < left - 2 or mid_x > right + 2:
                     continue
-                if ztype == "ice":
-                    for i in range(len(pts) - 1):
-                        x0, y0 = pts[i]
-                        x1, y1 = pts[i + 1]
-                        if x0 <= mid_x <= x1:
-                            p0 = _to_screen(x0, y0, self.camera.x, self.camera.y)
-                            p1 = _to_screen(x1, y1, self.camera.x, self.camera.y)
-                            overlay = pygame.Surface((p1[0] - p0[0] + 4, 8), pygame.SRCALPHA)
-                            overlay.fill((180, 210, 240, 80))
-                            surface.blit(overlay, (p0[0], p0[1] - 4))
-                            break
-                elif ztype == "mud":
-                    for i in range(len(pts) - 1):
-                        x0, y0 = pts[i]
-                        x1, y1 = pts[i + 1]
-                        if x0 <= mid_x <= x1:
-                            p0 = _to_screen(x0, y0, self.camera.x, self.camera.y)
-                            p1 = _to_screen(x1, y1, self.camera.x, self.camera.y)
-                            overlay = pygame.Surface((p1[0] - p0[0] + 4, 8), pygame.SRCALPHA)
-                            overlay.fill((90, 60, 30, 100))
-                            surface.blit(overlay, (p0[0], p0[1] - 4))
-                            break
+                for i in range(len(pts) - 1):
+                    x0, y0 = pts[i]
+                    x1, y1 = pts[i + 1]
+                    if x0 <= mid_x <= x1:
+                        p0 = _to_screen(x0, y0, self.camera.x, self.camera.y)
+                        p1 = _to_screen(x1, y1, self.camera.x, self.camera.y)
+                        w = p1[0] - p0[0] + 4
+                        cache_key = (ztype, w)
+                        overlay = self._zone_cache.get(cache_key)
+                        if overlay is None:
+                            overlay = pygame.Surface((max(1, w), 8), pygame.SRCALPHA)
+                            if ztype == "ice":
+                                overlay.fill((180, 210, 240, 80))
+                            else:
+                                overlay.fill((90, 60, 30, 100))
+                            self._zone_cache[cache_key] = overlay
+                        surface.blit(overlay, (p0[0], p0[1] - 4))
+                        break
 
     def _draw_objects(self, surface, left, top, right, bottom):
         for obj in self.terrain_manager.get_objects():
@@ -439,6 +461,8 @@ class GameScreen:
     def _draw_pickups(self, surface, left, top, right, bottom):
         coin_surf = sp.get_coin_sprite()
         fuel_surf = sp.get_fuel_sprite()
+        if not hasattr(self, "_coin_alpha_cache"):
+            self._coin_alpha_cache = {}
         for pickup in self.terrain_manager.get_pickups():
             if not pickup.is_active():
                 continue
@@ -449,10 +473,17 @@ class GameScreen:
             screen_pos = _to_screen(px, py + bob, self.camera.x, self.camera.y)
             if pickup.type == PickupType.COIN:
                 shimmer = 0.8 + 0.2 * math.sin(px * 2 + self.time * 3)
-                coin_copy = coin_surf.copy()
-                coin_copy.set_alpha(int(shimmer * 255))
-                cr = coin_copy.get_width() // 2
-                surface.blit(coin_copy, (screen_pos[0] - cr, screen_pos[1] - cr))
+                alpha = int(shimmer * 255)
+                cr = coin_surf.get_width() // 2
+                if alpha >= 254:
+                    surface.blit(coin_surf, (screen_pos[0] - cr, screen_pos[1] - cr))
+                else:
+                    coin_draw = self._coin_alpha_cache.get(alpha)
+                    if coin_draw is None:
+                        coin_draw = coin_surf.copy()
+                        coin_draw.set_alpha(alpha)
+                        self._coin_alpha_cache[alpha] = coin_draw
+                    surface.blit(coin_draw, (screen_pos[0] - cr, screen_pos[1] - cr))
             else:
                 fr = fuel_surf.get_width() // 2
                 surface.blit(fuel_surf, (screen_pos[0] - fr, screen_pos[1] - fr))
@@ -463,17 +494,17 @@ class GameScreen:
         ghost = self.ghost_player.get_state(self.time * 60)
         if ghost is None:
             return
-        gw = 1.6 * PIXELS_PER_METER
-        gh = 0.4 * PIXELS_PER_METER
+        if not hasattr(self, "_ghost_surf"):
+            gw = 1.6 * PIXELS_PER_METER
+            gh = 0.4 * PIXELS_PER_METER
+            self._ghost_surf = pygame.Surface((int(gw) + 4, int(gh) + 4), pygame.SRCALPHA)
+            cx, cy = self._ghost_surf.get_width() // 2, self._ghost_surf.get_height() // 2
+            rect = pygame.Rect(0, 0, int(gw), int(gh))
+            rect.center = (cx, cy)
+            pygame.draw.rect(self._ghost_surf, (100, 180, 255, 80), rect, border_radius=4)
         sp_x = int((ghost["x"] - self.camera.x) * PIXELS_PER_METER + SCREEN_WIDTH // 2)
-        sp_y = int((ghost["y"] - self.camera.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2)
-        ghost_surf = pygame.Surface((int(gw) + 4, int(gh) + 4), pygame.SRCALPHA)
-        cx, cy = ghost_surf.get_width() // 2, ghost_surf.get_height() // 2
-        rect = pygame.Rect(0, 0, int(gw), int(gh))
-        rect.center = (cx, cy)
-        pygame.draw.rect(ghost_surf, (100, 180, 255, 80), rect, border_radius=4)
-        a = ghost["angle"]
-        rot = pygame.transform.rotate(ghost_surf, -math.degrees(a))
+        sp_y = int((self.camera.y - ghost["y"]) * PIXELS_PER_METER + SCREEN_HEIGHT // 2)
+        rot = pygame.transform.rotate(self._ghost_surf, math.degrees(ghost["angle"]))
         r = rot.get_rect(center=(sp_x, sp_y))
         surface.blit(rot, r)
 
@@ -485,8 +516,8 @@ class GameScreen:
         body_surf = sp.get_car_body(d)
         bw, bh = body_surf.get_size()
         sp_x = int((ch.position.x - self.camera.x) * PIXELS_PER_METER + SCREEN_WIDTH // 2 - bw // 2)
-        sp_y = int((ch.position.y - self.camera.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2 - bh // 2)
-        rot_body = pygame.transform.rotate(body_surf, -math.degrees(ch.angle))
+        sp_y = int((self.camera.y - ch.position.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2 - bh // 2)
+        rot_body = pygame.transform.rotate(body_surf, math.degrees(ch.angle))
         rot_rect = rot_body.get_rect(center=(sp_x + bw // 2, sp_y + bh // 2))
         surface.blit(rot_body, rot_rect)
 
@@ -514,8 +545,8 @@ class GameScreen:
         wheel_surf = sp.get_wheel(radius)
         ww, wh = wheel_surf.get_size()
         sp_x = int((wheel.position.x - self.camera.x) * PIXELS_PER_METER + SCREEN_WIDTH // 2 - ww // 2)
-        sp_y = int((wheel.position.y - self.camera.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2 - wh // 2)
-        rot_wheel = pygame.transform.rotate(wheel_surf, -math.degrees(wheel.angle))
+        sp_y = int((self.camera.y - wheel.position.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2 - wh // 2)
+        rot_wheel = pygame.transform.rotate(wheel_surf, math.degrees(wheel.angle))
         rot_rect = rot_wheel.get_rect(center=(sp_x + ww // 2, sp_y + wh // 2))
         surface.blit(rot_wheel, rot_rect)
 
@@ -550,8 +581,12 @@ class GameScreen:
         bar_y = h - 46
         bar_w = 120
         bar_h = 14
-        pygame.draw.rect(surface, (40, 40, 50), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
         ratio = self.fuel / self.vehicle.get_fuel_max()
+        low_fuel = ratio < 0.2
+        flash = low_fuel and int(self.time * 4) % 2 == 0
+        border_color = (255, 50, 50) if flash else (40, 40, 50)
+        pygame.draw.rect(surface, border_color, (bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2), border_radius=3)
+        pygame.draw.rect(surface, (40, 40, 50), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
         fw = int(bar_w * ratio)
         if ratio > 0.3:
             fc = (0, 210, 70)
@@ -561,6 +596,9 @@ class GameScreen:
             pygame.draw.rect(surface, fc, (bar_x, bar_y, fw, bar_h), border_radius=3)
         pct_text = self.hud_font_small.render(f"{int(self.fuel)}%", True, (255, 255, 255))
         surface.blit(pct_text, (bar_x + bar_w + 6, h - 50))
+        if low_fuel:
+            warn = self.hud_font_small.render("LOW FUEL!", True, (255, 80, 80) if flash else (180, 40, 40))
+            surface.blit(warn, (col1_x, h - 30))
 
         coins_text = self.hud_font.render(f"{self.coins}", True, (255, 215, 0))
         surface.blit(coins_text, (col2_x, h - 44))
@@ -572,12 +610,16 @@ class GameScreen:
         dist_label = self.hud_font_small.render("DIST", True, (180, 180, 200))
         surface.blit(dist_label, (col3_x, h - 26))
 
+        speed = abs(self.vehicle.chassis.velocity.length) if hasattr(self.vehicle, "chassis") else 0
+        speed_text = self.hud_font_small.render(f"{speed:.0f} m/s", True, (200, 200, 255))
+        surface.blit(speed_text, (col3_x + 120, h - 44))
+
         goal_text = self.hud_font_small.render(f"GOAL: {self.stage.completion_distance}m", True, (180, 180, 100))
         surface.blit(goal_text, (col3_x, h - 12))
 
         if self.vehicle.get_flips() > 0:
             flip_text = self.hud_font_small.render(f"FLIPS: {self.vehicle.get_flips()}", True, (255, 200, 100))
-            surface.blit(flip_text, (col3_x + 120, h - 44))
+            surface.blit(flip_text, (col3_x + 180, h - 44))
 
         if self.paused:
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -600,17 +642,21 @@ class GameScreen:
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 130))
             surface.blit(overlay, (0, 0))
-            panel_w, panel_h = 320, 180
+            panel_w, panel_h = 320, 220
             panel = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
             panel.fill((30, 10, 10, 230))
             surface.blit(panel, (w // 2 - panel_w // 2, h // 2 - panel_h // 2))
             pygame.draw.rect(surface, (80, 30, 30), (w // 2 - panel_w // 2, h // 2 - panel_h // 2, panel_w, panel_h), 2, border_radius=4)
             gt = self.hud_font.render("GAME OVER", True, (255, 70, 70))
-            surface.blit(gt, (w // 2 - gt.get_width() // 2, h // 2 - 70))
+            surface.blit(gt, (w // 2 - gt.get_width() // 2, h // 2 - 80))
             d_text = self.hud_font_small.render(f"Distance: {int(self.distance)}m", True, (200, 200, 200))
-            surface.blit(d_text, (w // 2 - 80, h // 2 - 25))
+            surface.blit(d_text, (w // 2 - 80, h // 2 - 30))
             c_text = self.hud_font_small.render(f"Coins: {self.coins}", True, (200, 200, 200))
-            surface.blit(c_text, (w // 2 - 80, h // 2 + 5))
+            surface.blit(c_text, (w // 2 - 80, h // 2))
+            restart_text = self.hud_font_small.render("Press R / ENTER to Restart", True, (180, 180, 100))
+            surface.blit(restart_text, (w // 2 - restart_text.get_width() // 2, h // 2 + 40))
+            esc_text = self.hud_font_small.render("Press ESC to Quit", True, (150, 150, 150))
+            surface.blit(esc_text, (w // 2 - esc_text.get_width() // 2, h // 2 + 65))
 
     def _draw_tutorial(self, surface):
         if self.tutorial_timer <= 0:
@@ -653,25 +699,21 @@ class GameScreen:
         c_text = self.hud_font_small.render(f"Coins: {self.coins}", True, (220, 220, 220))
         surface.blit(c_text, (w // 2 - 70, h // 2 - 20))
 
-        next_idx = 0
-        for i, s in enumerate(STAGES):
-            if s.id == self.stage.id and i + 1 < len(STAGES):
-                next_idx = i + 1
-                break
-        has_next = next_idx > 0
-
-        results_opts = []
-        if has_next:
-            results_opts = ["NEXT STAGE", "MENU"]
-        else:
-            results_opts = ["MENU"]
-
-        self.results_options = results_opts
-        for i, opt in enumerate(results_opts):
+        options = self._compute_results_options()
+        if self.results_choice >= len(options):
+            self.results_choice = 0
+        for i, opt in enumerate(options):
             c = (255, 255, 255) if i == self.results_choice else (140, 140, 160)
             ot = self.hud_font.render(opt, True, c)
             surface.blit(ot, (w // 2 - ot.get_width() // 2, h // 2 + 20 + i * 45))
 
     def dispose(self):
         self.game.sound_manager.stop_engine()
-        self.game.sound_manager.play_music()
+        if not self.game.sound_manager.muted:
+            self.game.sound_manager.play_music()
+        if hasattr(self, "_coin_alpha_cache"):
+            self._coin_alpha_cache.clear()
+        if hasattr(self, "_zone_cache"):
+            self._zone_cache.clear()
+        sp.clear_cache()
+        assets.clear_font_cache()

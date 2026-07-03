@@ -1,7 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/index.py": {
-      "runtime": "@vercel/python@6.47.3"
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,__pycache__/**,**/*.pyc,sprites.py,assets.py,particle_system.py,sound_manager.py,background.py,build.py,ghost.py,save_data.py,test_drive.py,**/__pycache__/**,**/pycache/**}"
     }
   },
   "routes": [

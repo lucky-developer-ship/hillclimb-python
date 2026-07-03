@@ -75,6 +75,8 @@ class PhysicsWorld:
         if shape in self.shapes:
             self.space.remove(shape)
             self.shapes.remove(shape)
+        self._contacting_pairs = {(s1, s2) for s1, s2 in self._contacting_pairs
+                                   if s1 is not shape and s2 is not shape}
 
     def remove_constraint(self, constraint):
         if constraint in self.constraints:

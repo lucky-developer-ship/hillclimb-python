@@ -77,6 +77,7 @@ def _gen_music_wav(duration=8.0):
 class SoundManager:
     def __init__(self):
         self.enabled = True
+        self.muted = False
         try:
             pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
         except pygame.error:
@@ -109,16 +110,26 @@ class SoundManager:
         self.music_volume = music_vol
         self.sfx_volume = sfx_vol
 
+    def toggle_mute(self):
+        self.muted = not self.muted
+        if self.muted:
+            self.stop_engine()
+            self.stop_music()
+        else:
+            self.play_music()
+
     def play_sfx(self, name):
-        if self.enabled and name in self.sounds and self.sfx_volume > 0:
-            self.sounds[name].set_volume(self.sfx_volume)
-            self.sounds[name].play()
+        if self.muted or not self.enabled or name not in self.sounds or self.sfx_volume <= 0:
+            return
+        self.sounds[name].set_volume(self.sfx_volume)
+        self.sounds[name].play()
 
     def start_engine(self):
-        if self.enabled and "engine" in self.sounds:
-            self.sounds["engine"].set_volume(self.sfx_volume * 0.3)
-            self.sounds["engine"].play(-1)
-            self._current_engine_freq = 80
+        if self.muted or not self.enabled or "engine" not in self.sounds:
+            return
+        self.sounds["engine"].set_volume(self.sfx_volume * 0.3)
+        self.sounds["engine"].play(-1)
+        self._current_engine_freq = 80
 
     def stop_engine(self):
         if self.enabled and "engine" in self.sounds:
@@ -141,7 +152,8 @@ class SoundManager:
             return
         target_freq = 55 + min(200, abs(wheel_rpm) * 2)
         target_freq = max(55, min(300, target_freq))
-        if hasattr(self, "_current_engine_freq") and abs(self._current_engine_freq - target_freq) > 15:
+        threshold = 25 if hasattr(self, "_current_engine_freq") else 0
+        if abs(getattr(self, "_current_engine_freq", 0) - target_freq) > threshold:
             self._current_engine_freq = target_freq
             old_vol = self.sounds["engine"].get_volume()
             self.sounds["engine"].stop()
@@ -150,7 +162,7 @@ class SoundManager:
             self.sounds["engine"].play(-1)
 
     def play_music(self):
-        if not self.enabled:
+        if self.muted or not self.enabled:
             return
         self.stop_music()
         try:

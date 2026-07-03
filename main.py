@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pygame
@@ -10,17 +11,29 @@ from screen.garage_screen import GarageScreen
 from screen.menu_screen import MenuScreen
 from screen.settings_screen import SettingsScreen
 from screen.stage_select_screen import StageSelectScreen
+from screen.credits_screen import CreditsScreen
 from screen.upgrade_screen import UpgradeScreen
 from sound_manager import SoundManager
+
+
+def is_android():
+    return "ANDROID_ARGUMENT" in os.environ or "ANDROID_PRIVATE" in os.environ
 
 
 class Game:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.android = is_android()
+        if self.android:
+            self.screen = pygame.display.set_mode(
+                (0, 0), pygame.FULLSCREEN | pygame.SCALED
+            )
+        else:
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Hill Climb Racing Clone")
         self.clock = pygame.time.Clock()
         self.running = True
+        self.fullscreen = False
         self.save_data = SaveData()
         self.sound_manager = SoundManager()
         sd = self.save_data
@@ -43,6 +56,8 @@ class Game:
             seed = kwargs.get("seed", None)
             daily = kwargs.get("daily", False)
             self.current_screen = GameScreen(self, stage, seed=seed, daily=daily)
+        elif name == "credits":
+            self.current_screen = CreditsScreen(self)
         elif name == "settings":
             self.current_screen = SettingsScreen(self)
 
@@ -53,6 +68,15 @@ class Game:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         self.running = False
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                        if not self.android:
+                            self.fullscreen = not self.fullscreen
+                            if self.fullscreen:
+                                self.screen = pygame.display.set_mode(
+                                    (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED
+                                )
+                            else:
+                                self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
                     elif self.current_screen:
                         self.current_screen.handle_event(event)
                 if self.current_screen:
@@ -63,8 +87,6 @@ class Game:
                 if dt > 0.05:
                     dt = 0.05
         finally:
-            # Runs on normal quit AND on a crash, so an unhandled exception
-            # mid-run doesn't wipe out coins/unlocks earned that session.
             self.save_data.save()
             pygame.quit()
         sys.exit()

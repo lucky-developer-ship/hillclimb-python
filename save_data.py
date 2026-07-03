@@ -4,10 +4,12 @@ from pathlib import Path
 
 from data.game_data import STAGES, VEHICLES
 
-# Anchored to this file's folder (not the current working directory) so the
-# save is found/written correctly whether the game is launched via run.bat,
-# start.bat, an IDE, or a shortcut with a different working directory.
-SAVE_PATH = str(Path(__file__).resolve().parent / "hillclimb_save.json")
+# On Android, save to the app's private data directory provided by p4a.
+# On desktop, anchor to this file's folder for consistency across launch methods.
+if "ANDROID_PRIVATE" in os.environ:
+    SAVE_PATH = str(Path(os.environ["ANDROID_PRIVATE"]) / "hillclimb_save.json")
+else:
+    SAVE_PATH = str(Path(__file__).resolve().parent / "hillclimb_save.json")
 SAVE_VERSION = 1
 
 

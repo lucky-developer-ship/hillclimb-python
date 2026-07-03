@@ -85,17 +85,16 @@ class ParticleSystem:
         self.emit(x, y, 8, (255, 200, 100), 3, 3, 0.4, 0.8, 2)
 
     def update(self, dt, camera_x, camera_y):
-        for p in self.particles[:]:
+        for p in self.particles:
             p.update(dt)
-            if p.is_dead():
-                self.particles.remove(p)
+        self.particles = [p for p in self.particles if not p.is_dead()]
 
     def draw(self, surface, camera_x, camera_y):
         from constants import SCREEN_HEIGHT, SCREEN_WIDTH
 
         for p in self.particles:
             sx = int((p.x - camera_x) * PIXELS_PER_METER + SCREEN_WIDTH // 2)
-            sy = int((p.y - camera_y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2)
+            sy = int((camera_y - p.y) * PIXELS_PER_METER + SCREEN_HEIGHT // 2)
             alpha = int(p.get_alpha() * 255)
             circle_surf = self._get_circle_surface(p.color, p.size)
             circle_surf.set_alpha(alpha)
