@@ -38,14 +38,9 @@ jobs:
             build-essential \
             ccache \
             cmake \
-            gettext \
             git \
             libffi-dev \
-            libltdl-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
             libssl-dev \
-            libtinfo5 \
             libtool \
             openjdk-17-jdk-headless \
             patch \
