@@ -10,10 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: kivy/buildozer:latest
-      options: --user root
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          path: /home/user/hostcwd
+
+      - name: Fix workspace permissions
+        run: |
+          sudo chown -R user:user /home/user/hostcwd
 
       - name: Cache Buildozer global directory
         uses: actions/cache@v4
@@ -23,7 +28,7 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          yes | buildozer -v android debug
+          cd /home/user/hostcwd && buildozer -v android debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
