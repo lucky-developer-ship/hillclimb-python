@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hill Climb Racing Clone</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Hill Climb Racing</h1>
+  <p class="subtitle">Python · Pygame · Pymunk — Physics-driven 2D off-road racing</p>
+  <a class="download-btn" href="#">Download (Windows .exe)</a>
+</header>
+
+<section class="features">
+  <div class="card">
+    <h3>Procedural Terrain</h3>
+    <p>Layered noise generates unique dirt, ice, and mud tracks every run. Share seeds to race friends on identical terrain.</p>
+  </div>
+  <div class="card">
+    <h3>Deep Upgrades</h3>
+    <p>7 upgrade types — engine, suspension, tires, 4WD, fuel cap, heavy chassis, lightweight frame. 3 levels each.</p>
+  </div>
+  <div class="card">
+    <h3>Daily Challenge</h3>
+    <p>One shot per day on a fixed-seed track. Climb the league tiers — Bronze, Silver, Gold, Champion — and earn coin rewards.</p>
+  </div>
+  <div class="card">
+    <h3>Ghost Racing</h3>
+    <p>Your best run is recorded as a ghost. Race your past self and try to beat your own distance record.</p>
+  </div>
+</section>
+
+<section class="leaderboard-section">
+  <h2>Global Leaderboard</h2>
+  <div class="table-wrap">
+    <table id="leaderboard">
+      <caption>Top distances submitted by players worldwide</caption>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Player</th>
+          <th>Distance</th>
+          <th>Vehicle</th>
+          <th>Upgrades</th>
+          <th>Coins</th>
+          <th>Completed</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboard-body">
+        <tr><td colspan="7">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="analytics-section">
+  <h2>Player Analytics</h2>
+  <div class="analytics-grid" id="analytics">
+    <div class="stat"><span class="label">Avg Crash Distance</span><span class="value" id="avg-dist">—</span></div>
+    <div class="stat"><span class="label">Total Runs</span><span class="value" id="total-runs">—</span></div>
+    <div class="stat"><span class="label">Crash Rate</span><span class="value" id="crash-rate">—</span></div>
+    <div class="stat"><span class="label">Daily Active</span><span class="value" id="dau">—</span></div>
+    <div class="stat"><span class="label">Most Used Vehicle</span><span class="value" id="top-vehicle">—</span></div>
+    <div class="stat"><span class="label">Most Used Upgrade</span><span class="value" id="top-upgrade">—</span></div>
+  </div>
+</section>
+
+<footer>
+  <p>Open source under MIT. <a href="https://github.com/YOUR_USER/hillclimb-python">View on GitHub</a></p>
+</footer>
+
+<script>
+async function loadLeaderboard() {
+  const resp = await fetch('/api/leaderboard?limit=20');
+  const data = await resp.json();
+  const tbody = document.getElementById('leaderboard-body');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No scores yet — be the first!</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((r, i) => {
+    let upgrades = 'none';
+    try {
+      const u = JSON.parse(r.upgrades.replace(/'/g, '"'));
+      const names = Object.keys(u);
+      if (names.length) upgrades = names.slice(0, 3).join(', ') + (names.length > 3 ? '...' : '');
+    } catch (_) {}
+    return `<tr>
+      <td>${i + 1}</td>
+      <td>${escHtml(r.player_name)}</td>
+      <td>${Math.round(r.distance)}m</td>
+      <td>${escHtml(r.vehicle_id)}</td>
+      <td>${escHtml(upgrades)}</td>
+      <td>${r.coins}</td>
+      <td>${r.completed ? 'yes' : 'no'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadAnalytics() {
+  const resp = await fetch('/api/analytics');
+  const d = await resp.json();
+  document.getElementById('avg-dist').textContent = d.average_crash_distance + 'm';
+  document.getElementById('total-runs').textContent = d.total_runs;
+  document.getElementById('crash-rate').textContent = (d.crash_rate * 100).toFixed(1) + '%';
+  document.getElementById('dau').textContent = d.daily_active_users;
+  document.getElementById('top-vehicle').textContent = d.most_used_vehicle || '—';
+  document.getElementById('top-upgrade').textContent = d.most_used_upgrade || '—';
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+loadLeaderboard();
+loadAnalytics();
+setInterval(loadLeaderboard, 30000);
+</script>
+
+</body>
+</html>

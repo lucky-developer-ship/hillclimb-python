@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["data", "data.*", "entity", "entity.*", "physics", "physics.*", "screen", "screen.*", "system", "system.*"]
+
+[project]
+name = "hillclimb_python"
+version = "1.0.0"
+description = "Hill Climb Racing clone made with Pygame and Pymunk"
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "pygame>=2.5.0,<3.0",
+    "pymunk>=7.3.0,<8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
